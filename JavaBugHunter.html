@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Java Bug Hunter</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; display: flex; justify-content: center; padding: 20px; }
+  .container { max-width: 1200px; width: 100%; }
+  header { text-align: center; padding: 30px 0 20px; }
+  header h1 { font-size: 2.4em; background: linear-gradient(135deg, #f0883e, #f7c948); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  header p { color: #8b949e; margin-top: 6px; font-size: 1.05em; }
+  .tab-bar { display: flex; gap: 0; margin-bottom: 20px; background: #161b22; border-radius: 10px; overflow: hidden; border: 1px solid #30363d; }
+  .tab-bar button { flex: 1; padding: 14px; border: none; background: transparent; color: #8b949e; font-size: 1em; cursor: pointer; transition: .2s; font-weight: 600; }
+  .tab-bar button.active { background: #1f2937; color: #f7c948; box-shadow: inset 0 -2px 0 #f7c948; }
+  .tab-bar button:hover:not(.active) { background: #1c2128; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 28px; margin-bottom: 20px; }
+  .card h2 { margin-bottom: 16px; font-size: 1.2em; color: #f0f6fc; }
+  .form-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .form-row label { font-weight: 500; color: #c9d1d9; }
+  .form-row select, .form-row input[type="number"] { background: #0d1117; border: 1px solid #30363d; color: #e6edf3; padding: 10px 14px; border-radius: 8px; font-size: .95em; outline: none; }
+  .form-row select:focus, .form-row input:focus { border-color: #f7c948; }
+  .btn { padding: 10px 26px; border: none; border-radius: 8px; font-size: .95em; font-weight: 600; cursor: pointer; transition: .2s; white-space: nowrap; }
+  .btn-primary { background: #f7c948; color: #0d1117; }
+  .btn-primary:hover { background: #f5c12e; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn-secondary { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+  .btn-secondary:hover { background: #30363d; }
+  .btn-success { background: #238636; color: #fff; }
+  .btn-success:hover { background: #2ea043; }
+  .btn-danger { background: #da3633; color: #fff; }
+  .btn-danger:hover { background: #f85149; }
+  .btn-outline { background: transparent; color: #c9d1d9; border: 1px solid #30363d; }
+  .btn-outline:hover { background: #1c2128; }
+  .game-area { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; }
+
+  /* progress + scoreboard */
+  .progress-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .progress-bar .bar { flex: 1; height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; }
+  .progress-bar .bar .fill { height: 100%; background: linear-gradient(90deg,#f7c948,#f0883e); border-radius: 4px; transition: width .4s; }
+  .progress-bar .label { color: #8b949e; font-size: .9em; white-space: nowrap; }
+  .scoreboard { display: flex; gap: 14px; margin-bottom: 16px; }
+  .scoreboard .stat { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 10px 18px; text-align: center; flex: 1; }
+  .scoreboard .stat .num { font-size: 1.5em; font-weight: 700; }
+  .scoreboard .stat .desc { font-size: .75em; color: #8b949e; text-transform: uppercase; letter-spacing: .5px; }
+  .scoreboard .stat.correct .num { color: #7ee787; }
+  .scoreboard .stat.wrong .num { color: #ffa198; }
+
+  /* split layout */
+  .game-split { display: flex; gap: 16px; align-items: flex-start; }
+  .game-left { flex: 1; min-width: 0; }
+  .game-right { width: 270px; flex-shrink: 0; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; padding: 18px; position: sticky; top: 16px; }
+
+  /* objective panel */
+  .obj-section { margin-bottom: 18px; }
+  .obj-section:last-child { margin-bottom: 0; }
+  .obj-label { font-size: .75em; text-transform: uppercase; letter-spacing: .6px; color: #8b949e; margin-bottom: 4px; font-weight: 600; }
+  .obj-value { font-size: .95em; color: #e6edf3; }
+  .obj-value.error-tag { display: inline-block; background: #3d1f1a; color: #ffa198; padding: 3px 12px; border-radius: 20px; font-size: .85em; font-weight: 600; }
+  .obj-value.code-desc { font-family: 'Cascadia Code','Consolas',monospace; font-size: .85em; color: #c9d1d9; padding: 10px; background: #161b22; border-radius: 6px; border: 1px solid #21262d; white-space: pre-wrap; line-height: 1.5; max-height: 200px; overflow-y: auto; }
+  .obj-title { font-weight: 700; font-size: 1.15em; color: #f0f6fc; margin-bottom: 12px; }
+
+  /* code editor with line numbers */
+  .editor-wrapper { border: 1px solid #30363d; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+  .editor-wrapper.has-error { border-color: #da3633; }
+  .editor-wrapper.has-success { border-color: #238636; }
+  .editor-scroll { overflow: auto; max-height: 500px; background: #0d1117; border-radius: 7px; }
+  .editor-inner { display: flex; min-height: 280px; }
+  .line-numbers { flex-shrink: 0; padding: 14px 0; background: #0d1117; text-align: right; user-select: none; color: #484f58; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .85em; line-height: 1.6; min-width: 44px; border-right: 1px solid #21262d; overflow: hidden; }
+  .line-numbers span { display: block; padding: 0 10px 0 8px; }
+  .editor-content { position: relative; flex: 1; align-self: flex-start; }
+  .highlight-layer { padding: 14px 16px; margin: 0; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .85em; line-height: 1.6; white-space: pre; pointer-events: none; tab-size: 4; color: #e6edf3; overflow: visible; }
+  .highlight-layer .kw { color: #ff7b72; }
+  .highlight-layer .ty { color: #ffa657; }
+  .highlight-layer .str { color: #a5d6ff; }
+  .highlight-layer .num { color: #79c0ff; }
+  .highlight-layer .cm { color: #8b949e; font-style: italic; }
+  .highlight-layer .ann { color: #d2a8ff; }
+  .highlight-layer .op { color: #ff7b72; }
+  .code-textarea { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 14px 16px; border: none; background: transparent; color: transparent; caret-color: #e6edf3; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .85em; line-height: 1.6; resize: none; outline: none; tab-size: 4; white-space: pre; overflow: hidden; -webkit-text-fill-color: transparent; }
+  .code-textarea::selection { background: #3b5998; -webkit-text-fill-color: transparent; }
+
+  /* action + output */
+  .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .editor-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #0d1117; padding: 8px 12px; border-bottom: 1px solid #21262d; }
+  .toggle-btn { background: #21262d; border: 1px solid #30363d; color: #8b949e; padding: 4px 12px; border-radius: 6px; font-size: .8em; cursor: pointer; transition: .2s; font-weight: 500; user-select: none; }
+  .toggle-btn.active { background: #1f2937; border-color: #f7c948; color: #f7c948; }
+  .toggle-btn:hover { background: #30363d; }
+  .compiler-output { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; min-height: 64px; font-family: 'Cascadia Code','Consolas',monospace; font-size: .85em; line-height: 1.5; white-space: pre-wrap; overflow-x: auto; }
+  .compiler-output.success { border-color: #238636; }
+  .compiler-output.error { border-color: #da3633; }
+  .compiler-output .ok-line { color: #7ee787; }
+  .compiler-output .error-line { color: #ffa198; }
+  .compiler-output .info-line { color: #8b949e; }
+
+  /* finish */
+  .finish-card { text-align: center; padding: 40px 20px; }
+  .finish-card h2 { font-size: 2em; margin-bottom: 8px; }
+  .finish-card .grade { font-size: 3.5em; font-weight: 800; margin: 16px 0; }
+  .finish-card .grade.perfect { color: #7ee787; }
+  .finish-card .grade.great { color: #f7c948; }
+  .finish-card .grade.good { color: #f0883e; }
+  .finish-card .grade.poor { color: #ffa198; }
+  .finish-card .details { color: #8b949e; margin-bottom: 20px; }
+
+  /* custom setup */
+  .custom-setup { display: flex; flex-direction: column; gap: 16px; }
+  .custom-setup .field-group { display: flex; flex-direction: column; gap: 6px; }
+  .custom-setup .field-group label { font-weight: 600; color: #c9d1d9; font-size: .92em; }
+  .custom-setup .field-group textarea { width: 100%; min-height: 180px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #e6edf3; font-family: 'Cascadia Code','Consolas',monospace; font-size: .9em; padding: 14px; resize: vertical; outline: none; tab-size: 4; line-height: 1.6; }
+  .custom-setup .field-group textarea:focus { border-color: #f7c948; }
+  .custom-setup .field-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .custom-setup .field-row input[type="number"] { background: #0d1117; border: 1px solid #30363d; color: #e6edf3; padding: 10px 14px; border-radius: 8px; font-size: .95em; outline: none; width: 80px; }
+  .custom-setup .field-row input:focus { border-color: #f7c948; }
+
+  /* bug list in right panel */
+  .bug-list { display: flex; flex-direction: column; gap: 6px; }
+  .bug-list .bug-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #161b22; border: 1px solid #21262d; border-radius: 6px; font-size: .85em; }
+  .bug-list .bug-item .idx { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #3d1f1a; color: #ffa198; font-weight: 700; font-size: .78em; flex-shrink: 0; }
+  .bug-list .bug-item .idx.fixed { background: #1a3d1f; color: #7ee787; }
+  .bug-list .bug-item .desc { flex: 1; color: #c9d1d9; }
+  .bug-list .bug-item .status { font-weight: 600; font-size: .78em; }
+  .bug-list .bug-item .status.fixed { color: #7ee787; }
+  .bug-list .bug-item .status.pending { color: #f7c948; }
+
+  .diff-removed { color: #ffa198; background: #3d1f1a; border-radius: 3px; padding: 0 4px; }
+  .diff-added { color: #7ee787; background: #1a3d1f; border-radius: 3px; padding: 0 4px; }
+
+  @media (max-width: 860px) {
+    .game-split { flex-direction: column; }
+    .game-right { position: static; }
+    body { padding: 10px; }
+    header h1 { font-size: 1.6em; }
+  }
+  @media (max-width: 600px) {
+    .form-row { flex-direction: column; align-items: stretch; }
+    .scoreboard { flex-direction: column; }
+    .action-row { flex-direction: column; }
+    .action-row .btn { width: 100%; }
+  }
+
+  /* fake paywall */
+  .paywall-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
+  .paywall-overlay.open { display: flex; }
+  .paywall-card { background: #161b22; border: 1px solid #30363d; border-radius: 14px; padding: 32px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .paywall-card .lock-icon { font-size: 2.5em; margin-bottom: 10px; }
+  .paywall-card h2 { margin: 0 0 6px; font-size: 1.3em; color: #e6edf3; }
+  .paywall-card p { color: #8b949e; font-size: .9em; margin: 0 0 20px; }
+  .paywall-card .price { font-size: 2em; font-weight: 700; color: #f7c948; margin-bottom: 4px; }
+  .paywall-card .price-sub { font-size: .75em; color: #8b949e; margin-bottom: 20px; }
+  .paywall-card .pw-btn { display: block; width: 100%; padding: 12px; border-radius: 8px; font-size: .95em; font-weight: 600; cursor: pointer; transition: .2s; border: none; margin-bottom: 8px; }
+  .paywall-card .pw-btn.primary { background: #f7c948; color: #0d1117; }
+  .paywall-card .pw-btn.primary:hover { background: #e5b83a; }
+  .paywall-card .pw-btn.secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+  .paywall-card .pw-btn.secondary:hover { background: #30363d; }
+  .paywall-card .pw-link { display: inline-block; margin-top: 12px; color: #58a6ff; font-size: .82em; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .paywall-card .pw-link:hover { color: #79c0ff; }
+  .paywall-card .pw-badge { display: inline-block; background: #1f2937; color: #8b949e; font-size: .68em; padding: 2px 10px; border-radius: 20px; margin-bottom: 14px; letter-spacing: .3px; }
+  .pw-spinner { display: none; width: 20px; height: 20px; border: 2px solid #30363d; border-top-color: #f7c948; border-radius: 50%; animation: pw-spin .6s linear infinite; margin: 12px auto; }
+  .pw-spinner.active { display: block; }
+  @keyframes pw-spin { to { transform: rotate(360deg); } }
+  .pw-checkmark { display: none; font-size: 2em; color: #3fb950; margin: 8px 0; }
+  .pw-checkmark.active { display: block; }
+  .pw-fail { display: none; font-size: .85em; color: #ff7b72; margin: 8px 0; padding: 8px; background: #3d1f1a; border-radius: 6px; }
+  .pw-fail.active { display: block; }
+  .pw-code-area { border-top: 1px solid #21262d; padding-top: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>☕ Java Bug Hunter</h1>
+    <p>Find and fix syntax errors in Java code</p>
+  </header>
+
+  <div class="tab-bar">
+    <button class="active" data-tab="problems">Practice Problems</button>
+    <button data-tab="custom">Custom Code</button>
+  </div>
+
+  <!-- ========== PRACTICE PROBLEMS TAB ========== -->
+  <div class="panel active" id="tab-problems">
+    <div class="card" id="setupPanel">
+      <h2>Choose Your Challenge</h2>
+      <div class="form-row">
+        <label for="problemCount">Number of problems:</label>
+        <select id="problemCount">
+          <option value="3">3</option>
+          <option value="5" selected>5</option>
+          <option value="10">10</option>
+          <option value="0">All</option>
+        </select>
+        <button class="btn btn-primary" id="startBtn">Start Game</button>
+      </div>
+    </div>
+
+    <div class="game-area" id="gamePanel" style="display:none;">
+      <div class="progress-bar">
+        <span class="label" id="progressLabel">0 / 0</span>
+        <div class="bar"><div class="fill" id="progressFill" style="width:0%"></div></div>
+      </div>
+      <div class="scoreboard">
+        <div class="stat correct"><div class="num" id="scoreCorrect">0</div><div class="desc">Correct</div></div>
+        <div class="stat wrong"><div class="num" id="scoreWrong">0</div><div class="desc">Wrong</div></div>
+        <div class="stat"><div class="num" id="scoreStreak">0</div><div class="desc">Streak</div></div>
+      </div>
+
+      <div class="game-split">
+        <!-- LEFT: Code Editor -->
+        <div class="game-left">
+          <div class="editor-toolbar">
+            <span class="toggle-btn active" id="practiceHighlightToggle">Highlight</span>
+            <span class="toggle-btn active" id="practiceLineToggle">Line Numbers</span>
+          </div>
+          <div class="editor-wrapper" id="practiceEditorWrapper">
+            <div class="editor-scroll">
+              <div class="editor-inner">
+                <div class="line-numbers" id="practiceLineNumbers"><span>1</span></div>
+                <div class="editor-content">
+                  <pre class="highlight-layer" id="practiceHighlight"><code></code></pre>
+                  <textarea class="code-textarea" id="codeEditor" spellcheck="false"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="action-row">
+            <button class="btn btn-success" id="checkBtn">▶ Compile &amp; Check</button>
+            <button class="btn btn-outline" id="hintBtn">💡 Hint</button>
+            <button class="btn btn-secondary" id="skipBtn">Skip →</button>
+            <button class="btn btn-secondary" id="resetBtn">↺ Reset</button>
+          </div>
+          <div class="compiler-output" id="compilerOutput">
+            <span class="info-line">Edit the code to fix the syntax error, then click Compile.</span>
+          </div>
+        </div>
+        <!-- RIGHT: Objective -->
+        <div class="game-right" id="practiceObjective">
+          <div class="obj-title" id="problemTitle">Problem #1</div>
+          <div class="obj-section">
+            <div class="obj-label">Error Type</div>
+            <div class="obj-value error-tag" id="errorTypeTag">Syntax Error</div>
+          </div>
+          <div class="obj-section">
+            <div class="obj-label">Description</div>
+            <div class="obj-value code-desc" id="problemDesc">Fix the syntax error in the code on the left.</div>
+          </div>
+          <div class="obj-section">
+            <div class="obj-label">Hint</div>
+            <div class="obj-value" id="hintDisplay" style="color:#8b949e;font-size:.9em;">Click "💡 Hint" for help.</div>
+          </div>
+          <div class="obj-section">
+            <div class="obj-label">Status</div>
+            <div class="obj-value" id="statusDisplay" style="color:#f7c948;font-size:.9em;">Waiting for your fix...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-area" id="finishPanel" style="display:none;">
+      <div class="finish-card">
+        <h2>🎉 Challenge Complete!</h2>
+        <div class="grade" id="gradeDisplay">A+</div>
+        <div class="details" id="finishDetails">You got 5 out of 5 correct!</div>
+        <button class="btn btn-primary" id="playAgainBtn">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== CUSTOM CODE TAB ========== -->
+  <div class="panel" id="tab-custom">
+    <div class="card" id="customSetup">
+      <h2>🧪 Debug Your Own Code</h2>
+      <p style="color:#8b949e;margin-bottom:16px;">Paste your original Java code, choose how many bugs to inject, and the system will mutate it with syntax errors. Fix all bugs to match the original.</p>
+      <div class="custom-setup">
+        <div class="field-group">
+          <label for="originalCodeInput">Your Original Java Code (correct version):</label>
+          <textarea id="originalCodeInput" spellcheck="false" placeholder="public class Main {&#10;    public static void main(String[] args) {&#10;        System.out.println("Hello World");&#10;    }&#10;}"></textarea>
+        </div>
+        <div class="field-row">
+          <label for="bugCountInput">Number of bugs:</label>
+          <input type="number" id="bugCountInput" min="1" max="10" value="3">
+          <button class="btn btn-primary" id="generateChallengeBtn">Generate Challenge</button>
+          <button class="btn btn-outline" id="loadSampleBtn">Load Sample</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-area" id="customGamePanel" style="display:none;">
+      <div class="progress-bar">
+        <span class="label" id="customProgressLabel">0 / 0 bugs fixed</span>
+        <div class="bar"><div class="fill" id="customProgressFill" style="width:0%"></div></div>
+      </div>
+
+      <div class="game-split">
+        <!-- LEFT: Code Editor -->
+        <div class="game-left">
+          <div class="editor-toolbar">
+            <span class="toggle-btn active" id="customHighlightToggle">Highlight</span>
+            <span class="toggle-btn active" id="customLineToggle">Line Numbers</span>
+          </div>
+          <div class="editor-wrapper" id="customEditorWrapper">
+            <div class="editor-scroll">
+              <div class="editor-inner">
+                <div class="line-numbers" id="customLineNumbers"><span>1</span></div>
+                <div class="editor-content">
+                  <pre class="highlight-layer" id="customHighlight"><code></code></pre>
+                  <textarea class="code-textarea" id="customCodeEditor" spellcheck="false"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="action-row">
+            <button class="btn btn-success" id="customCheckBtn">▶ Verify All Fixes</button>
+            <button class="btn btn-outline" id="showDiffBtn">📊 Show Diff</button>
+            <button class="btn btn-secondary" id="customResetBtn">↺ Reset</button>
+          </div>
+          <div class="compiler-output" id="customCompilerOutput">
+            <span class="info-line">Fix all the bugs, then click "Verify All Fixes" to check against the original code.</span>
+          </div>
+        </div>
+        <!-- RIGHT: Bug List -->
+        <div class="game-right" id="customObjective">
+          <div class="obj-title">Debug Challenge</div>
+          <div class="obj-section">
+            <div class="obj-label">Bugs Injected</div>
+            <div class="obj-value error-tag" id="customErrorCount">3 bugs</div>
+          </div>
+          <div class="obj-section">
+            <button class="toggle-btn" id="showHintsBtn">Show Hints</button>
+            <div class="bug-list" id="bugList" style="display:none;margin-top:8px;"></div>
+          </div>
+          <div class="obj-section">
+            <div class="obj-label">Goal</div>
+            <div class="obj-value" style="color:#8b949e;font-size:.88em;">Fix all bugs so your code matches the original exactly.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-area" id="customFinishPanel" style="display:none;">
+      <div class="finish-card">
+        <h2 id="customFinishTitle">✅ All Bugs Fixed!</h2>
+        <div class="grade" id="customGradeDisplay">A+</div>
+        <div class="details" id="customFinishDetails">You fixed all 3 bugs correctly!</div>
+        <button class="btn btn-primary" id="customPlayAgainBtn">Try Another</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- fake paywall modal -->
+<div class="paywall-overlay" id="paywallOverlay">
+  <div class="paywall-card">
+    <div class="lock-icon" id="pwLockIcon" style="cursor:pointer;">🔒</div>
+    <div class="pw-badge">PREMIUM FEATURE</div>
+    <h2>Unlock Debugging Power</h2>
+    <p>Get instant access to hints and diffs to squash bugs faster.</p>
+    <div class="price">$9.99</div>
+    <div class="price-sub">per month — cancel anytime</div>
+    <button class="pw-btn primary" id="pwSubscribe">Subscribe Now</button>
+    <button class="pw-btn secondary" id="pwUnlock">Unlock One-Time ($4.99)</button>
+    <div class="pw-spinner" id="pwSpinner"></div>
+    <div class="pw-checkmark" id="pwCheckmark">✓</div>
+    <div class="pw-fail" id="pwFail">✗ Payment failed. Please try again later.</div>
+    <div class="pw-code-area" id="pwCodeArea" style="display:none;margin-top:14px;">
+      <input type="password" id="pwCodeInput" placeholder="Enter unlock code" style="width:100%;padding:10px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:.9em;text-align:center;outline:none;box-sizing:border-box;">
+      <button class="pw-btn secondary" id="pwCodeSubmit" style="margin-top:8px;">Unlock</button>
+      <div style="font-size:.72em;color:#8b949e;margin-top:6px;">Hint: the code is 6 digits</div>
+    </div>
+    <div class="pw-link" id="pwSkip">No thanks, I'll debug manually</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// PROBLEM DATABASE
+// ============================================================
+const PROBLEMS = [
+  { id:1, title:"Missing Semicolon", buggy:`public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello World")\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello World");\n    }\n}`, errorType:"Missing ;", hint:"Every statement in Java must end with a semicolon." },
+  { id:2, title:"Missing Closing Brace", buggy:`public class Main {\n    public static void main(String[] args) {\n        int x = 10;\n        if (x > 5) {\n            System.out.println("Bigger");\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        int x = 10;\n        if (x > 5) {\n            System.out.println("Bigger");\n        }\n    }\n}`, errorType:"Missing }", hint:"Count your opening and closing braces — they must match." },
+  { id:3, title:"Missing Parenthesis", buggy:`public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello");\n        if x > 5 {\n            System.out.println("x is big");\n        }\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello");\n        if (x > 5) {\n            System.out.println("x is big");\n        }\n    }\n}`, errorType:"Missing ( )", hint:"Conditions in 'if' statements must be wrapped in parentheses." },
+  { id:4, title:"Keyword as Variable", buggy:`public class Main {\n    public static void main(String[] args) {\n        int class = 42;\n        System.out.println(class);\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        int clazz = 42;\n        System.out.println(clazz);\n    }\n}`, errorType:"Keyword misuse", hint:"'class' is a reserved keyword and cannot be used as a variable name." },
+  { id:5, title:"Wrong Keyword Case", buggy:`Public class Main {\n    Public static void main(String[] args) {\n        System.out.println("Java is case-sensitive");\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        System.out.println("Java is case-sensitive");\n    }\n}`, errorType:"Wrong case", hint:"Java keywords like 'public' and 'class' must be in lowercase." },
+  { id:6, title:"Unclosed String", buggy:`public class Main {\n    public static void main(String[] args) {\n        String name = "Alice;\n        System.out.println(name);\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        String name = "Alice";\n        System.out.println(name);\n    }\n}`, errorType:"Unclosed string", hint:"String literals must be enclosed in matching double quotes." },
+  { id:7, title:"Missing Return Type", buggy:`public class Main {\n    public static void main(String[] args) {\n        greet();\n    }\n    static greet() {\n        System.out.println("Hello!");\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        greet();\n    }\n    static void greet() {\n        System.out.println("Hello!");\n    }\n}`, errorType:"Missing return type", hint:"Methods must declare a return type (use 'void' if they return nothing)." },
+  { id:8, title:"= Instead of ==", buggy:`public class Main {\n    public static void main(String[] args) {\n        int x = 5;\n        if (x = 5) {\n            System.out.println("Equal");\n        }\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        int x = 5;\n        if (x == 5) {\n            System.out.println("Equal");\n        }\n    }\n}`, errorType:"Assignment vs ==", hint:"Use '==' for comparison, not '=' (assignment)." },
+  { id:9, title:"String Comparison with ==", buggy:`public class Main {\n    public static void main(String[] args) {\n        String a = "hello";\n        String b = "hello";\n        if (a == b) {\n            System.out.println("Equal");\n        }\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        String a = "hello";\n        String b = "hello";\n        if (a.equals(b)) {\n            System.out.println("Equal");\n        }\n    }\n}`, errorType:"String compare", hint:"Strings should be compared with .equals(), not ==" },
+  { id:10, title:"Missing Array Brackets", buggy:`public class Main {\n    public static void main(String[] args) {\n        int numbers = {1,2,3,4,5};\n        System.out.println(numbers[0]);\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        int[] numbers = {1,2,3,4,5};\n        System.out.println(numbers[0]);\n    }\n}`, errorType:"Missing []", hint:"Array variables need brackets in the declaration: int[]" },
+  { id:11, title:"Extra Comma in Array", buggy:`public class Main {\n    public static void main(String[] args) {\n        int[] nums = {1,2,3,};\n        for (int n : nums) System.out.println(n);\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        int[] nums = {1,2,3};\n        for (int n : nums) System.out.println(n);\n    }\n}`, errorType:"Extra comma", hint:"The last element in an array initializer should not be followed by a comma." },
+  { id:12, title:"Undeclared Variable", buggy:`public class Main {\n    public static void main(String[] args) {\n        x = 10;\n        System.out.println(x);\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        int x = 10;\n        System.out.println(x);\n    }\n}`, errorType:"Undeclared variable", hint:"Variables must be declared with a type before they can be used." },
+  { id:13, title:"Unreachable Code", buggy:`public class Main {\n    public static void main(String[] args) {\n        return;\n        System.out.println("no");\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        System.out.println("no");\n        return;\n    }\n}`, errorType:"Unreachable code", hint:"Code after 'return' will never execute." },
+  { id:14, title:"Duplicate Variable", buggy:`public class Main {\n    public static void main(String[] args) {\n        int x = 10;\n        int x = 20;\n        System.out.println(x);\n    }\n}`, correct:`public class Main {\n    public static void main(String[] args) {\n        int x = 20;\n        System.out.println(x);\n    }\n}`, errorType:"Duplicate variable", hint:"You cannot declare the same variable twice in the same scope." },
+  { id:15, title:"Missing Import", buggy:`public class Main {\n    public static void main(String[] args) {\n        List<String> items = new ArrayList<>();\n        items.add("A");\n        System.out.println(items);\n    }\n}`, correct:`import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> items = new ArrayList<>();\n        items.add("A");\n        System.out.println(items);\n    }\n}`, errorType:"Missing import", hint:"Add import statements at the top for List and ArrayList." }
+];
+
+// ============================================================
+// SYNTAX HIGHLIGHTER
+// ============================================================
+const KW = new Set(['abstract','assert','boolean','break','byte','case','catch','char','class','const','continue','default','do','double','else','enum','extends','final','finally','float','for','goto','if','implements','import','instanceof','int','interface','long','native','new','package','private','protected','public','return','short','static','strictfp','super','switch','synchronized','this','throw','throws','transient','try','void','volatile','while','true','false','null','var']);
+const TY = new Set(['String','Integer','Double','Float','Boolean','Long','Short','Byte','Character','Object','List','ArrayList','Map','HashMap','Set','HashSet','Collection','Collections','Arrays','Math','System','Exception','RuntimeException','Error','Throwable','Runnable','Thread','StringBuilder','StringBuffer']);
+
+function highlightJava(code) {
+  let s = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'), o = '', i = 0, n = s.length;
+  while (i < n) {
+    if (s[i]==='/' && s[i+1]==='/') { let e=s.indexOf('\n',i); if(e<0)e=n; o+='<span class="cm">'+s.slice(i,e)+'</span>'; i=e; continue; }
+    if (s[i]==='/' && s[i+1]==='*') { let e=s.indexOf('*/',i+2); if(e<0)e=n-2; o+='<span class="cm">'+s.slice(i,e+2)+'</span>'; i=e+2; continue; }
+    if (s[i]==='"') { let e=i+1; while(e<n&&s[e]!=='"'){ if(s[e]==='\\')e++; e++; } if(e<n)e++; o+='<span class="str">'+s.slice(i,e)+'</span>'; i=e; continue; }
+    if (s[i]==="'") { let e=i+1; while(e<n&&s[e]!=="'"){ if(s[e]==='\\')e++; e++; } if(e<n)e++; o+='<span class="str">'+s.slice(i,e)+'</span>'; i=e; continue; }
+    if (s[i]==='@') { let e=i+1; while(e<n&&/\w/.test(s[e]))e++; o+='<span class="ann">'+s.slice(i,e)+'</span>'; i=e; continue; }
+    if (/[$\w]/.test(s[i])) { let e=i; while(e<n&&/[$\w]/.test(s[e]))e++; const w=s.slice(i,e); if(KW.has(w)) o+='<span class="kw">'+w+'</span>'; else if(TY.has(w)) o+='<span class="ty">'+w+'</span>'; else o+=w; i=e; continue; }
+    if (/\d/.test(s[i])) { let e=i; while(e<n&&/[\d.eEfFlLdD]/.test(s[e]))e++; o+='<span class="num">'+s.slice(i,e)+'</span>'; i=e; continue; }
+    if ('+-*/%=<>!&|^~?:;,'.includes(s[i])) { o+='<span class="op">'+s[i]+'</span>'; i++; continue; }
+    if ('{}()[]'.includes(s[i])) { o+=s[i]; i++; continue; }
+    o+=s[i]; i++;
+  }
+  return o;
+}
+
+// ============================================================
+// EDITOR SYNC (line numbers + highlight)
+// ============================================================
+function setupEditorSync(textareaId, lineNumId, highlightId, wrapperId) {
+  const ta = document.getElementById(textareaId);
+  const ln = document.getElementById(lineNumId);
+  const hl = document.getElementById(highlightId);
+  const wr = document.getElementById(wrapperId);
+
+  function update() {
+    const code = ta.value;
+    const lines = code.split('\n');
+    ln.innerHTML = lines.map((_, i) => `<span>${i + 1}</span>`).join('');
+    hl.innerHTML = highlightJava(code) + '\n';
+  }
+
+  ta.addEventListener('input', update);
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = ta.selectionStart, end = ta.selectionEnd;
+      ta.value = ta.value.substring(0, start) + '    ' + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = start + 4;
+      update();
+    }
+  });
+
+  setTimeout(update, 10);
+  return { textarea: ta, wrapper: wr, lineNumbers: ln, highlight: hl, update };
+}
+
+// ============================================================
+// PRACTICE GAME STATE
+// ============================================================
+let state = { problems:[], currentIndex:0, correctCount:0, wrongCount:0, streak:0, bestStreak:0, answers:[], gameActive:false };
+
+// ============================================================
+// CUSTOM CODE STATE
+// ============================================================
+let customState = { originalCode:'', buggyCode:'', bugs:[], fixedBugs:new Set(), active:false };
+
+// ============================================================
+// DOM REFS
+// ============================================================
+const $ = id => document.getElementById(id);
+const setupPanel=$('setupPanel'), gamePanel=$('gamePanel'), finishPanel=$('finishPanel');
+const startBtn=$('startBtn'), problemCountSelect=$('problemCount');
+const checkBtn=$('checkBtn'), hintBtn=$('hintBtn'), skipBtn=$('skipBtn'), resetBtn=$('resetBtn'), playAgainBtn=$('playAgainBtn');
+const compilerOutput=$('compilerOutput'), progressLabel=$('progressLabel'), progressFill=$('progressFill');
+const scoreCorrect=$('scoreCorrect'), scoreWrong=$('scoreWrong'), scoreStreak=$('scoreStreak');
+const problemTitle=$('problemTitle'), errorTypeTag=$('errorTypeTag'), problemDesc=$('problemDesc');
+const hintDisplay=$('hintDisplay'), statusDisplay=$('statusDisplay');
+const gradeDisplay=$('gradeDisplay'), finishDetails=$('finishDetails');
+
+const customSetup=$('customSetup'), originalCodeInput=$('originalCodeInput'), bugCountInput=$('bugCountInput');
+const generateChallengeBtn=$('generateChallengeBtn'), loadSampleBtn=$('loadSampleBtn');
+const customGamePanel=$('customGamePanel'), customFinishPanel=$('customFinishPanel');
+const customCheckBtn=$('customCheckBtn'), customResetBtn=$('customResetBtn'), showDiffBtn=$('showDiffBtn');
+const customCompilerOutput=$('customCompilerOutput'), customProgressLabel=$('customProgressLabel'), customProgressFill=$('customProgressFill');
+const customErrorCount=$('customErrorCount'), bugList=$('bugList');
+const customPlayAgainBtn=$('customPlayAgainBtn'), customGradeDisplay=$('customGradeDisplay'), customFinishDetails=$('customFinishDetails'), customFinishTitle=$('customFinishTitle');
+
+// ============================================================
+// INIT EDITORS
+// ============================================================
+const practiceEditor = setupEditorSync('codeEditor','practiceLineNumbers','practiceHighlight','practiceEditorWrapper');
+const customEditor = setupEditorSync('customCodeEditor','customLineNumbers','customHighlight','customEditorWrapper');
+
+// ============================================================
+// TOGGLES
+// ============================================================
+function setupToggle(btnId, onActive) {
+  const btn = document.getElementById(btnId);
+  btn.addEventListener('click', () => {
+    btn.classList.toggle('active');
+    onActive(btn.classList.contains('active'));
+  });
+}
+
+// practice highlight toggle
+setupToggle('practiceHighlightToggle', (on) => {
+  const hl = document.getElementById('practiceHighlight');
+  const ta = document.getElementById('codeEditor');
+  hl.style.visibility = on ? 'visible' : 'hidden';
+  ta.style.color = on ? 'transparent' : '#e6edf3';
+  ta.style.webkitTextFillColor = on ? 'transparent' : '#e6edf3';
+});
+// practice line numbers toggle
+setupToggle('practiceLineToggle', (on) => {
+  document.getElementById('practiceLineNumbers').style.display = on ? '' : 'none';
+});
+// custom highlight toggle
+setupToggle('customHighlightToggle', (on) => {
+  const hl = document.getElementById('customHighlight');
+  const ta = document.getElementById('customCodeEditor');
+  hl.style.visibility = on ? 'visible' : 'hidden';
+  ta.style.color = on ? 'transparent' : '#e6edf3';
+  ta.style.webkitTextFillColor = on ? 'transparent' : '#e6edf3';
+});
+// custom line numbers toggle
+setupToggle('customLineToggle', (on) => {
+  document.getElementById('customLineNumbers').style.display = on ? '' : 'none';
+});
+
+// show hints toggle
+const showHintsBtn = document.getElementById('showHintsBtn');
+const hintsBugList = document.getElementById('bugList');
+let hintsRevealed = false;
+showHintsBtn.addEventListener('click', () => {
+  if (hintsRevealed) {
+    const showing = hintsBugList.style.display !== 'none';
+    hintsBugList.style.display = showing ? 'none' : 'block';
+    showHintsBtn.textContent = showing ? 'Show Hints' : 'Hide Hints';
+    showHintsBtn.classList.toggle('active');
+    return;
+  }
+  showPaywall(() => {
+    hintsRevealed = true;
+    hintsBugList.style.display = 'block';
+    showHintsBtn.textContent = 'Hide Hints';
+    showHintsBtn.classList.add('active');
+  });
+});
+
+// ============================================================
+// FAKE PAYWALL
+// ============================================================
+const pwOverlay = document.getElementById('paywallOverlay');
+const pwSpinner = document.getElementById('pwSpinner');
+const pwCheckmark = document.getElementById('pwCheckmark');
+const pwFail = document.getElementById('pwFail');
+
+function resetPaywall() {
+  pwSpinner.classList.remove('active');
+  pwCheckmark.classList.remove('active');
+  pwFail.classList.remove('active');
+}
+
+function showPaywall(onUnlock) {
+  resetPaywall();
+  document.getElementById('pwCodeArea').style.display = 'none';
+  document.getElementById('pwCodeInput').value = '';
+  pwOverlay.classList.add('open');
+  pwOverlay._unlock = onUnlock;
+}
+
+document.getElementById('pwSkip').addEventListener('click', () => {
+  pwOverlay.classList.remove('open');
+  resetPaywall();
+});
+
+function fakePurchase(btn) {
+  btn.disabled = true;
+  resetPaywall();
+  pwSpinner.classList.add('active');
+  setTimeout(() => {
+    pwSpinner.classList.remove('active');
+    pwFail.classList.add('active');
+    btn.disabled = false;
+  }, 1800);
+}
+
+document.getElementById('pwSubscribe').addEventListener('click', function () {
+  fakePurchase(this);
+});
+document.getElementById('pwUnlock').addEventListener('click', function () {
+  fakePurchase(this);
+});
+
+// lock icon → code entry
+document.getElementById('pwLockIcon').addEventListener('click', () => {
+  const area = document.getElementById('pwCodeArea');
+  area.style.display = area.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('pwCodeSubmit').addEventListener('click', () => {
+  const code = document.getElementById('pwCodeInput').value.trim();
+  if (code === '999202') {
+    pwOverlay.classList.remove('open');
+    resetPaywall();
+    document.getElementById('pwCodeArea').style.display = 'none';
+    if (pwOverlay._unlock) pwOverlay._unlock();
+  } else {
+    document.getElementById('pwCodeInput').style.borderColor = '#da3633';
+    setTimeout(() => {
+      document.getElementById('pwCodeInput').style.borderColor = '#30363d';
+    }, 1200);
+  }
+});
+
+document.getElementById('pwCodeInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('pwCodeSubmit').click();
+});
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+document.querySelectorAll('.tab-bar button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ============================================================
+// PRACTICE GAME LOGIC
+// ============================================================
+function shuffleArray(arr) { for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+function startGame() {
+  const count = parseInt(problemCountSelect.value);
+  let selected = shuffleArray([...PROBLEMS]);
+  if (count > 0) selected = selected.slice(0, count);
+  state = { problems:selected, currentIndex:0, correctCount:0, wrongCount:0, streak:0, bestStreak:0, answers:[], gameActive:true };
+  setupPanel.style.display = 'none';
+  gamePanel.style.display = 'block';
+  finishPanel.style.display = 'none';
+  loadProblem(0);
+}
+
+function loadProblem(index) {
+  if (!state.gameActive || index >= state.problems.length) { finishGame(); return; }
+  state.currentIndex = index;
+  const p = state.problems[index];
+  problemTitle.textContent = `Problem #${index+1}: ${p.title}`;
+  errorTypeTag.textContent = p.errorType;
+  problemDesc.textContent = 'Fix the syntax error in the code on the left.';
+  hintDisplay.textContent = 'Click "💡 Hint" for help.';
+  hintDisplay.style.color = '#8b949e';
+  statusDisplay.textContent = 'Waiting for your fix...';
+  statusDisplay.style.color = '#f7c948';
+  practiceEditor.textarea.value = p.buggy;
+  practiceEditor.wrapper.className = 'editor-wrapper';
+  practiceEditor.update();
+  compilerOutput.innerHTML = '<span class="info-line">Edit the code to fix the syntax error, then click Compile.</span>';
+  compilerOutput.className = 'compiler-output';
+  updateProgress();
+  updateScoreboard();
+  checkBtn.disabled = false;
+  hintBtn.disabled = false;
+  skipBtn.disabled = false;
+}
+
+function updateProgress() {
+  const total = state.problems.length;
+  const done = state.currentIndex;
+  progressLabel.textContent = `${done} / ${total}`;
+  progressFill.style.width = total > 0 ? `${(done/total)*100}%` : '0%';
+}
+
+function updateScoreboard() {
+  scoreCorrect.textContent = state.correctCount;
+  scoreWrong.textContent = state.wrongCount;
+  scoreStreak.textContent = state.streak;
+}
+
+function normalizeCode(code) { return code.replace(/\s+/g,' ').trim(); }
+
+function checkAnswer() {
+  if (!state.gameActive) return;
+  const p = state.problems[state.currentIndex];
+  const userCode = practiceEditor.textarea.value;
+  const passed = normalizeCode(userCode) === normalizeCode(p.correct);
+
+  if (passed) {
+    state.correctCount++; state.streak++;
+    if (state.streak > state.bestStreak) state.bestStreak = state.streak;
+    practiceEditor.wrapper.className = 'editor-wrapper has-success';
+    compilerOutput.innerHTML = '<span class="ok-line">✅ Compilation successful! No syntax errors found.</span>\n<span class="ok-line">   Your fix is correct.</span>';
+    compilerOutput.className = 'compiler-output success';
+    statusDisplay.textContent = '✅ Correct! Moving to next...';
+    statusDisplay.style.color = '#7ee787';
+  } else {
+    state.wrongCount++; state.streak = 0;
+    practiceEditor.wrapper.className = 'editor-wrapper has-error';
+    const diff = findDiff(userCode, p.correct);
+    compilerOutput.innerHTML = '<span class="error-line">❌ Compilation failed! Syntax error still present.</span>\n<span class="info-line">   Expected fix: ' + p.errorType + '</span>\n<span class="info-line">   ' + diff + '</span>';
+    compilerOutput.className = 'compiler-output error';
+    statusDisplay.textContent = '❌ Not quite. Check the diff below.';
+    statusDisplay.style.color = '#ffa198';
+  }
+
+  state.answers.push({ problemId:p.id, userCode, passed });
+  updateScoreboard();
+  checkBtn.disabled = true;
+  hintBtn.disabled = true;
+  skipBtn.disabled = true;
+
+  setTimeout(() => loadProblem(state.currentIndex+1), passed ? 1200 : 2500);
+}
+
+function findDiff(userCode, correctCode) {
+  const u = userCode.split('\n'), c = correctCode.split('\n');
+  for (let i = 0; i < Math.max(u.length,c.length); i++) {
+    if (u[i] !== c[i]) {
+      const n = i+1;
+      if (i >= u.length) return `Line ${n}: missing "${c[i].trim()}"`;
+      if (i >= c.length) return `Line ${n}: extra "${u[i].trim()}"`;
+      return `Line ${n}: expected "${c[i].trim()}" got "${u[i].trim()}"`;
+    }
+  }
+  return 'Minor difference detected.';
+}
+
+function showHint() {
+  const p = state.problems[state.currentIndex];
+  hintDisplay.textContent = p.hint;
+  hintDisplay.style.color = '#f7c948';
+  compilerOutput.innerHTML = '<span class="info-line">💡 Hint: ' + p.hint + '</span>\n<span class="info-line">   Error type: ' + p.errorType + '</span>';
+  compilerOutput.className = 'compiler-output';
+}
+
+function skipProblem() {
+  const p = state.problems[state.currentIndex];
+  state.wrongCount++; state.streak = 0;
+  state.answers.push({ problemId:p.id, userCode:practiceEditor.textarea.value, passed:false });
+  updateScoreboard();
+  loadProblem(state.currentIndex+1);
+}
+
+function resetCode() {
+  const p = state.problems[state.currentIndex];
+  practiceEditor.textarea.value = p.buggy;
+  practiceEditor.wrapper.className = 'editor-wrapper';
+  practiceEditor.update();
+  compilerOutput.innerHTML = '<span class="info-line">Code has been reset to the original buggy version.</span>';
+  compilerOutput.className = 'compiler-output';
+  statusDisplay.textContent = 'Reset to buggy version. Try again!';
+  statusDisplay.style.color = '#f7c948';
+}
+
+function finishGame() {
+  state.gameActive = false;
+  gamePanel.style.display = 'none';
+  finishPanel.style.display = 'block';
+  const total = state.problems.length, correct = state.correctCount, pct = total > 0 ? (correct/total)*100 : 0;
+  let grade, cls;
+  if (pct === 100) { grade='A+ ★'; cls='perfect'; }
+  else if (pct>=80) { grade='A'; cls='great'; }
+  else if (pct>=60) { grade='B'; cls='good'; }
+  else if (pct>=40) { grade='C'; cls='good'; }
+  else { grade='D'; cls='poor'; }
+  gradeDisplay.textContent = grade;
+  gradeDisplay.className = 'grade ' + cls;
+  finishDetails.textContent = `You got ${correct} out of ${total} correct (${Math.round(pct)}%) — Best streak: ${state.bestStreak}`;
+}
+
+// ============================================================
+// PRACTICE EVENT LISTENERS
+// ============================================================
+startBtn.addEventListener('click', startGame);
+playAgainBtn.addEventListener('click', () => { setupPanel.style.display='block'; finishPanel.style.display='none'; gamePanel.style.display='none'; state.gameActive=false; });
+checkBtn.addEventListener('click', checkAnswer);
+hintBtn.addEventListener('click', showHint);
+skipBtn.addEventListener('click', skipProblem);
+resetBtn.addEventListener('click', resetCode);
+practiceEditor.textarea.addEventListener('keydown', (e) => { if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); if(!checkBtn.disabled) checkAnswer(); } });
+
+// ============================================================
+// CUSTOM — BUG INJECTION ENGINE
+// ============================================================
+function injectSemicolonRemoval(code) {
+  const lines = code.split('\n'), candidates = [];
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (t.endsWith(';') && !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*')) { candidates.push({ line:i, idx:lines[i].lastIndexOf(';') }); }
+  }
+  if (!candidates.length) return null;
+  const t = candidates[Math.floor(Math.random()*candidates.length)];
+  const nl = [...lines]; nl[t.line] = nl[t.line].slice(0,t.idx) + nl[t.line].slice(t.idx+1);
+  return { code:nl.join('\n'), desc:`Removed semicolon at line ${t.line+1}`, line:t.line+1 };
+}
+function injectBraceRemoval(code) {
+  const lines = code.split('\n'), candidates = [];
+  for (let i = 0; i < lines.length; i++) { const t = lines[i].trim(); if (t === '}' || t.endsWith('}')) candidates.push({ line:i, char:t.lastIndexOf('}') }); }
+  if (candidates.length < 2) return null;
+  const t = candidates[Math.floor(Math.random()*candidates.length)];
+  const nl = [...lines]; nl[t.line] = nl[t.line].slice(0,t.char) + nl[t.line].slice(t.char+1);
+  return { code:nl.join('\n'), desc:`Removed closing brace at line ${t.line+1}`, line:t.line+1 };
+}
+function injectKeywordCase(code) {
+  const keywords = ['public','private','protected','class','static','void'];
+  const lines = code.split('\n'), candidates = [];
+  for (let i = 0; i < lines.length; i++) {
+    for (const kw of keywords) {
+      if (new RegExp('\\b'+kw+'\\b').test(lines[i]) && !lines[i].trim().startsWith('//')) { candidates.push({ line:i, kw, idx:lines[i].search(new RegExp('\\b'+kw+'\\b')) }); break; }
+    }
+  }
+  if (!candidates.length) return null;
+  const t = candidates[Math.floor(Math.random()*candidates.length)];
+  const nl = [...lines]; const mutated = t.kw.charAt(0).toUpperCase()+t.kw.slice(1);
+  nl[t.line] = nl[t.line].replace(t.kw, mutated);
+  return { code:nl.join('\n'), desc:`Changed '${t.kw}' to '${mutated}' at line ${t.line+1}`, line:t.line+1 };
+}
+function injectParenthesisRemoval(code) {
+  const lines = code.split('\n'), candidates = [];
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (/^\s*if\s*\(/.test(t)||/^\s*while\s*\(/.test(t)||/^\s*for\s*\(/.test(t)) candidates.push({ line:i, idx:lines[i].indexOf('(') });
+  }
+  if (!candidates.length) return null;
+  const t = candidates[Math.floor(Math.random()*candidates.length)];
+  const nl = [...lines]; nl[t.line] = nl[t.line].slice(0,t.idx) + nl[t.line].slice(t.idx+1);
+  return { code:nl.join('\n'), desc:`Removed opening parenthesis at line ${t.line+1}`, line:t.line+1 };
+}
+function injectEqualsToAssignment(code) {
+  const lines = code.split('\n'), candidates = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/\bif\s*\(.*==.*\)/.test(lines[i])||/\bwhile\s*\(.*==.*\)/.test(lines[i])) candidates.push({ line:i, idx:lines[i].lastIndexOf('==') });
+  }
+  if (!candidates.length) return null;
+  const t = candidates[Math.floor(Math.random()*candidates.length)];
+  const nl = [...lines]; nl[t.line] = nl[t.line].slice(0,t.idx) + '=' + nl[t.line].slice(t.idx+2);
+  return { code:nl.join('\n'), desc:`Changed '==' to '=' at line ${t.line+1}`, line:t.line+1 };
+}
+function injectUnclosedString(code) {
+  const lines = code.split('\n'), candidates = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/"([^"]+)"/g);
+    if (m) { for (let j=0;j<m.length;j++) { const idx = lines[i].indexOf(m[j]); candidates.push({ line:i, idx:idx+m[j].length-1 }); } }
+  }
+  if (!candidates.length) return null;
+  const t = candidates[Math.floor(Math.random()*candidates.length)];
+  const nl = [...lines]; nl[t.line] = nl[t.line].slice(0,t.idx) + nl[t.line].slice(t.idx+1);
+  return { code:nl.join('\n'), desc:`Removed closing quote at line ${t.line+1}`, line:t.line+1 };
+}
+function injectTypeRemoval(code) {
+  const lines = code.split('\n'), candidates = [];
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    const m = t.match(/^\s*(int|double|float|boolean|char|long|short|byte|String)\s+(\w+)\s*[=;]/);
+    if (m && !t.startsWith('//') && !t.startsWith('*')) candidates.push({ line:i, type:m[1], idx:lines[i].indexOf(m[1]) });
+  }
+  if (!candidates.length) return null;
+  const t = candidates[Math.floor(Math.random()*candidates.length)];
+  const nl = [...lines]; nl[t.line] = nl[t.line].slice(0,t.idx) + nl[t.line].slice(t.idx+t.type.length+1);
+  return { code:nl.join('\n'), desc:`Removed type '${t.type}' at line ${t.line+1}`, line:t.line+1 };
+}
+
+const INJECTORS = [
+  { fn:injectSemicolonRemoval, type:'Missing ;' },
+  { fn:injectBraceRemoval, type:'Missing }' },
+  { fn:injectKeywordCase, type:'Wrong keyword case' },
+  { fn:injectParenthesisRemoval, type:'Missing (' },
+  { fn:injectEqualsToAssignment, type:'== vs =' },
+  { fn:injectUnclosedString, type:'Unclosed string' },
+  { fn:injectTypeRemoval, type:'Missing type' }
+];
+
+function generateBugs(code, count) {
+  let mutated = code, bugs = [];
+  const used = new Set();
+  let attempts = 0;
+  while (bugs.length < count && attempts < 50) {
+    attempts++;
+    const inj = INJECTORS[Math.floor(Math.random()*INJECTORS.length)];
+    if (used.has(inj.type) && used.size < INJECTORS.length) continue;
+    const r = inj.fn(mutated);
+    if (r && r.code !== mutated) {
+      if (!bugs.some(b => b.line === r.line && b.type === inj.type)) {
+        mutated = r.code;
+        bugs.push({ type:inj.type, desc:r.desc, line:r.line, fixed:false });
+        used.add(inj.type);
+      }
+    }
+  }
+  return { mutated, bugs };
+}
+
+// ============================================================
+// CUSTOM CODE UI
+// ============================================================
+function generateChallenge() {
+  const originalCode = originalCodeInput.value.trim();
+  if (!originalCode) {
+    customCompilerOutput.innerHTML = '<span class="error-line">Please paste your Java code first!</span>';
+    customCompilerOutput.className = 'compiler-output error';
+    return;
+  }
+  const bugCount = Math.min(Math.max(parseInt(bugCountInput.value)||1,1),10);
+  const { mutated, bugs } = generateBugs(originalCode, bugCount);
+  if (bugs.length === 0) {
+    customCompilerOutput.innerHTML = '<span class="error-line">Could not inject bugs into this code. Try a more complex Java snippet.</span>';
+    customCompilerOutput.className = 'compiler-output error';
+    return;
+  }
+  customState = { originalCode, buggyCode:mutated, bugs, fixedBugs:new Set(), active:true };
+  customSetup.style.display = 'none';
+  customGamePanel.style.display = 'block';
+  customFinishPanel.style.display = 'none';
+
+  customEditor.textarea.value = mutated;
+  customEditor.wrapper.className = 'editor-wrapper';
+  customEditor.update();
+  updateBugList();
+  updateCustomProgress();
+  customErrorCount.textContent = `${bugs.length} bug${bugs.length>1?'s':''}`;
+  customCompilerOutput.innerHTML = `<span class="info-line">🔨 ${bugs.length} bug${bugs.length>1?'s were':' was'} injected. Fix all of them to match the original code.</span>`;
+  customCompilerOutput.className = 'compiler-output';
+}
+
+function updateBugList() {
+  bugList.innerHTML = '';
+  customState.bugs.forEach((bug, idx) => {
+    const fixed = customState.fixedBugs.has(idx);
+    const d = document.createElement('div');
+    d.className = 'bug-item';
+    d.innerHTML = `<span class="idx ${fixed?'fixed':''}">${fixed?'✓':(idx+1)}</span><span class="desc">${bug.desc}</span><span class="status ${fixed?'fixed':'pending'}">${fixed?'FIXED':'PENDING'}</span>`;
+    bugList.appendChild(d);
+  });
+}
+
+function updateCustomProgress() {
+  const total = customState.bugs.length, fixed = customState.fixedBugs.size;
+  customProgressLabel.textContent = `${fixed} / ${total} bugs fixed`;
+  customProgressFill.style.width = total > 0 ? `${(fixed/total)*100}%` : '0%';
+}
+
+function verifyCustomFixes() {
+  if (!customState.active) return;
+  const userCode = customEditor.textarea.value;
+  if (normalizeCode(userCode) === normalizeCode(customState.originalCode)) {
+    customState.fixedBugs = new Set(customState.bugs.map((_,i)=>i));
+    updateBugList(); updateCustomProgress();
+    customEditor.wrapper.className = 'editor-wrapper has-success';
+    customCompilerOutput.innerHTML = '<span class="ok-line">✅ All bugs fixed! Your code matches the original perfectly.</span>';
+    customCompilerOutput.className = 'compiler-output success';
+    setTimeout(() => finishCustomGame(true), 1500);
+  } else {
+    const userLines = userCode.split('\n');
+    const originalLines = customState.originalCode.split('\n');
+    const buggyLines = customState.buggyCode.split('\n');
+    let newlyFixed = [], stillBroken = [];
+    customState.bugs.forEach((bug, idx) => {
+      if (customState.fixedBugs.has(idx)) { newlyFixed.push(idx); return; }
+      const bl = buggyLines[bug.line-1]||'', ul = userLines[bug.line-1]||'', ol = originalLines[bug.line-1]||'';
+      if (ul === ol && ul !== bl) newlyFixed.push(idx);
+      else if (ul !== ol) stillBroken.push(idx);
+    });
+    let diffLines = [];
+    for (let i = 0; i < Math.max(originalLines.length, userLines.length); i++) {
+      if (originalLines[i] !== userLines[i]) diffLines.push(i+1);
+    }
+    newlyFixed.forEach(idx => customState.fixedBugs.add(idx));
+    updateBugList(); updateCustomProgress();
+
+    if (customState.fixedBugs.size === customState.bugs.length) {
+      customEditor.wrapper.className = 'editor-wrapper has-success';
+      customCompilerOutput.innerHTML = '<span class="ok-line">✅ All bugs fixed! Your code matches the original.</span>';
+      customCompilerOutput.className = 'compiler-output success';
+      setTimeout(() => finishCustomGame(true), 1200);
+    } else {
+      customEditor.wrapper.className = 'editor-wrapper has-error';
+      const remaining = customState.bugs.length - customState.fixedBugs.size;
+      let msg = `<span class="error-line">⚠ ${remaining} bug${remaining>1?'s':''} still not fixed.</span>\n`;
+      if (diffLines.length > 0) msg += `<span class="info-line">   Lines with differences: ${diffLines.join(', ')}</span>`;
+      customCompilerOutput.innerHTML = msg;
+      customCompilerOutput.className = 'compiler-output error';
+    }
+  }
+}
+
+function finishCustomGame(success) {
+  customState.active = false;
+  customGamePanel.style.display = 'none';
+  customFinishPanel.style.display = 'block';
+  if (success) {
+    const total = customState.bugs.length;
+    customFinishTitle.textContent = '✅ All Bugs Fixed!';
+    customGradeDisplay.textContent = 'A+ ★';
+    customGradeDisplay.className = 'grade perfect';
+    customFinishDetails.textContent = `You fixed all ${total} bug${total>1?'s':''} correctly!`;
+  }
+}
+
+function resetCustomToBuggy() {
+  customEditor.textarea.value = customState.buggyCode;
+  customEditor.wrapper.className = 'editor-wrapper';
+  customEditor.update();
+  customState.fixedBugs = new Set();
+  updateBugList(); updateCustomProgress();
+  customCompilerOutput.innerHTML = '<span class="info-line">Code reset to the buggy version. Try again!</span>';
+  customCompilerOutput.className = 'compiler-output';
+}
+
+function showCustomDiff() {
+  const userCode = customEditor.textarea.value, original = customState.originalCode;
+  const u = userCode.split('\n'), o = original.split('\n');
+  const max = Math.max(u.length, o.length);
+  let html = '';
+  for (let i = 0; i < max; i++) {
+    if ((u[i]||'') !== (o[i]||'')) {
+      if (o[i] !== undefined) html += `<span class="diff-removed">- ${o[i]}</span>\n`;
+      if (u[i] !== undefined) html += `<span class="diff-added">+ ${u[i]}</span>\n`;
+    }
+  }
+  if (!html) html = '<span class="ok-line">✓ No differences — code matches the original!</span>';
+  customCompilerOutput.innerHTML = html;
+  customCompilerOutput.className = 'compiler-output';
+}
+
+// ============================================================
+// CUSTOM EVENT LISTENERS
+// ============================================================
+generateChallengeBtn.addEventListener('click', generateChallenge);
+loadSampleBtn.addEventListener('click', () => {
+  originalCodeInput.value = `public class Calculator {\n    public static void main(String[] args) {\n        int a = 10;\n        int b = 20;\n        int sum = a + b;\n        if (sum > 25) {\n            System.out.println("Sum is large");\n        }\n        for (int i = 0; i < 3; i++) {\n            System.out.println("Count: " + i);\n        }\n        String message = "Done";\n        System.out.println(message);\n    }\n}`;
+});
+customCheckBtn.addEventListener('click', verifyCustomFixes);
+customResetBtn.addEventListener('click', resetCustomToBuggy);
+let diffRevealed = false;
+showDiffBtn.addEventListener('click', () => {
+  if (diffRevealed) { showCustomDiff(); return; }
+  showPaywall(() => { diffRevealed = true; showCustomDiff(); });
+});
+customPlayAgainBtn.addEventListener('click', () => { customSetup.style.display='block'; customGamePanel.style.display='none'; customFinishPanel.style.display='none'; customState.active=false; });
+customEditor.textarea.addEventListener('keydown', (e) => { if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); verifyCustomFixes(); } });
+
+console.log('☕ Java Bug Hunter loaded — Ctrl+Enter to check!');
+</script>
+</body>
+</html>
