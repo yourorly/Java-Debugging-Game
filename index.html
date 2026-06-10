@@ -105,6 +105,21 @@
   .finish-card .grade.good { color: #f0883e; }
   .finish-card .grade.poor { color: #ffa198; }
   .finish-card .details { color: #8b949e; margin-bottom: 20px; }
+  .finish-card .btn { margin-bottom: 8px; }
+
+  /* review panel */
+  .review-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 999; overflow-y: auto; padding: 24px; }
+  .review-overlay.open { display: block; }
+  .review-card { max-width: 760px; margin: 0 auto; background: #0d1117; border: 1px solid #30363d; border-radius: 12px; padding: 24px; }
+  .review-card h2 { margin: 0 0 18px; font-size: 1.3em; color: #e6edf3; }
+  .review-item { border: 1px solid #21262d; border-radius: 8px; padding: 14px; margin-bottom: 12px; background: #161b22; }
+  .review-item .r-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .review-item .r-title { font-weight: 700; color: #e6edf3; font-size: .92em; }
+  .review-item .r-status { font-size: .78em; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+  .review-item .r-status.pass { background: #1a3d1f; color: #7ee787; }
+  .review-item .r-status.fail { background: #3d1f1a; color: #ffa198; }
+  .review-item .r-code { background: #0d1117; border-radius: 6px; padding: 10px; font-family: 'Cascadia Code','Consolas',monospace; font-size: .8em; line-height: 1.5; white-space: pre; overflow-x: auto; margin-bottom: 6px; border: 1px solid #21262d; }
+  .review-item .r-label { font-size: .72em; color: #8b949e; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
 
   /* custom setup */
   .custom-setup { display: flex; flex-direction: column; gap: 16px; }
@@ -265,6 +280,15 @@
         <div class="grade" id="gradeDisplay">A+</div>
         <div class="details" id="finishDetails">You got 5 out of 5 correct!</div>
         <button class="btn btn-primary" id="playAgainBtn">Play Again</button>
+        <button class="btn btn-outline" id="reviewBtn">Review Answers</button>
+      </div>
+    </div>
+
+    <div class="review-overlay" id="reviewOverlay">
+      <div class="review-card">
+        <h2>📋 Answer Review</h2>
+        <div id="reviewList"></div>
+        <button class="btn btn-outline" id="reviewCloseBtn" style="margin-top:12px;">Close Review</button>
       </div>
     </div>
   </div>
@@ -404,7 +428,7 @@ const KW = new Set(['abstract','assert','boolean','break','byte','case','catch',
 const TY = new Set(['String','Integer','Double','Float','Boolean','Long','Short','Byte','Character','Object','List','ArrayList','Map','HashMap','Set','HashSet','Collection','Collections','Arrays','Math','System','Exception','RuntimeException','Error','Throwable','Runnable','Thread','StringBuilder','StringBuffer']);
 
 function highlightJava(code) {
-  let s = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'), o = '', i = 0, n = s.length;
+  let s = code.replace(/&/g,'&amp;').replace(/</g,'&lt;'), o = '', i = 0, n = s.length;
   while (i < n) {
     if (s[i]==='/' && s[i+1]==='/') { let e=s.indexOf('\n',i); if(e<0)e=n; o+='<span class="cm">'+s.slice(i,e)+'</span>'; i=e; continue; }
     if (s[i]==='/' && s[i+1]==='*') { let e=s.indexOf('*/',i+2); if(e<0)e=n-2; o+='<span class="cm">'+s.slice(i,e+2)+'</span>'; i=e+2; continue; }
@@ -413,7 +437,7 @@ function highlightJava(code) {
     if (s[i]==='@') { let e=i+1; while(e<n&&/\w/.test(s[e]))e++; o+='<span class="ann">'+s.slice(i,e)+'</span>'; i=e; continue; }
     if (/[$\w]/.test(s[i])) { let e=i; while(e<n&&/[$\w]/.test(s[e]))e++; const w=s.slice(i,e); if(KW.has(w)) o+='<span class="kw">'+w+'</span>'; else if(TY.has(w)) o+='<span class="ty">'+w+'</span>'; else o+=w; i=e; continue; }
     if (/\d/.test(s[i])) { let e=i; while(e<n&&/[\d.eEfFlLdD]/.test(s[e]))e++; o+='<span class="num">'+s.slice(i,e)+'</span>'; i=e; continue; }
-    if ('+-*/%=<>!&|^~?:;,'.includes(s[i])) { o+='<span class="op">'+s[i]+'</span>'; i++; continue; }
+    if ('+-*/%=<>!|^~?:;,'.includes(s[i])) { o+='<span class="op">'+s[i]+'</span>'; i++; continue; }
     if ('{}()[]'.includes(s[i])) { o+=s[i]; i++; continue; }
     o+=s[i]; i++;
   }
@@ -465,6 +489,7 @@ let customState = { originalCode:'', buggyCode:'', bugs:[], fixedBugs:new Set(),
 // DOM REFS
 // ============================================================
 const $ = id => document.getElementById(id);
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 const setupPanel=$('setupPanel'), gamePanel=$('gamePanel'), finishPanel=$('finishPanel');
 const startBtn=$('startBtn'), problemCountSelect=$('problemCount');
 const checkBtn=$('checkBtn'), hintBtn=$('hintBtn'), skipBtn=$('skipBtn'), resetBtn=$('resetBtn'), playAgainBtn=$('playAgainBtn');
@@ -773,12 +798,35 @@ function finishGame() {
 // PRACTICE EVENT LISTENERS
 // ============================================================
 startBtn.addEventListener('click', startGame);
-playAgainBtn.addEventListener('click', () => { setupPanel.style.display='block'; finishPanel.style.display='none'; gamePanel.style.display='none'; state.gameActive=false; });
+playAgainBtn.addEventListener('click', () => { setupPanel.style.display='block'; finishPanel.style.display='none'; gamePanel.style.display='none'; state.gameActive=false; document.getElementById('reviewOverlay').classList.remove('open'); });
 checkBtn.addEventListener('click', checkAnswer);
 hintBtn.addEventListener('click', showHint);
 skipBtn.addEventListener('click', skipProblem);
 resetBtn.addEventListener('click', resetCode);
 practiceEditor.textarea.addEventListener('keydown', (e) => { if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); if(!checkBtn.disabled) checkAnswer(); } });
+
+// review answers
+document.getElementById('reviewBtn').addEventListener('click', () => {
+  const list = document.getElementById('reviewList');
+  list.innerHTML = state.answers.map((a, i) => {
+    const p = state.problems.find(pb => pb.id === a.problemId);
+    const n = i + 1;
+    return `<div class="review-item">
+      <div class="r-header">
+        <span class="r-title">#${n} ${p ? escapeHtml(p.title) : 'Unknown'}</span>
+        <span class="r-status ${a.passed ? 'pass' : 'fail'}">${a.passed ? 'CORRECT' : 'WRONG'}</span>
+      </div>
+      <div class="r-label">Your Code</div>
+      <div class="r-code">${escapeHtml(a.userCode)}</div>
+      <div class="r-label">Correct Code</div>
+      <div class="r-code" style="border-color:#238636;">${p ? escapeHtml(p.correct) : ''}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('reviewOverlay').classList.add('open');
+});
+document.getElementById('reviewCloseBtn').addEventListener('click', () => {
+  document.getElementById('reviewOverlay').classList.remove('open');
+});
 
 // ============================================================
 // CUSTOM — BUG INJECTION ENGINE
