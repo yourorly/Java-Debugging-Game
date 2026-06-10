@@ -221,6 +221,7 @@
         <div class="stat correct"><div class="num" id="scoreCorrect">0</div><div class="desc">Correct</div></div>
         <div class="stat wrong"><div class="num" id="scoreWrong">0</div><div class="desc">Wrong</div></div>
         <div class="stat"><div class="num" id="scoreStreak">0</div><div class="desc">Streak</div></div>
+        <div class="stat"><div class="num" id="timerDisplay">00:00</div><div class="desc">Time</div></div>
       </div>
 
       <div class="game-split">
@@ -316,6 +317,9 @@
       <div class="progress-bar">
         <span class="label" id="customProgressLabel">0 / 0 bugs fixed</span>
         <div class="bar"><div class="fill" id="customProgressFill" style="width:0%"></div></div>
+      </div>
+      <div class="scoreboard" style="margin-top:0;margin-bottom:12px;">
+        <div class="stat"><div class="num" id="customTimerDisplay">00:00</div><div class="desc">Time</div></div>
       </div>
 
       <div class="game-split">
@@ -479,6 +483,8 @@ function setupEditorSync(textareaId, lineNumId, highlightId, wrapperId) {
 // PRACTICE GAME STATE
 // ============================================================
 let state = { problems:[], currentIndex:0, correctCount:0, wrongCount:0, streak:0, bestStreak:0, answers:[], gameActive:false };
+let timerInterval = null, timerSeconds = 0;
+let customTimerInterval = null, customTimerSeconds = 0;
 
 // ============================================================
 // CUSTOM CODE STATE
@@ -664,7 +670,17 @@ function startGame() {
   setupPanel.style.display = 'none';
   gamePanel.style.display = 'block';
   finishPanel.style.display = 'none';
+  timerSeconds = 0;
+  document.getElementById('timerDisplay').textContent = '00:00';
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => { timerSeconds++; document.getElementById('timerDisplay').textContent = formatTime(timerSeconds); }, 1000);
   loadProblem(0);
+}
+
+function formatTime(s) {
+  const m = String(Math.floor(s / 60)).padStart(2, '0');
+  const sec = String(s % 60).padStart(2, '0');
+  return m + ':' + sec;
 }
 
 function loadProblem(index) {
@@ -791,14 +807,14 @@ function finishGame() {
   else { grade='D'; cls='poor'; }
   gradeDisplay.textContent = grade;
   gradeDisplay.className = 'grade ' + cls;
-  finishDetails.textContent = `You got ${correct} out of ${total} correct (${Math.round(pct)}%) — Best streak: ${state.bestStreak}`;
+  finishDetails.textContent = `You got ${correct} out of ${total} correct (${Math.round(pct)}%) — Best streak: ${state.bestStreak} — Time: ${formatTime(timerSeconds)}`;
 }
 
 // ============================================================
 // PRACTICE EVENT LISTENERS
 // ============================================================
 startBtn.addEventListener('click', startGame);
-playAgainBtn.addEventListener('click', () => { setupPanel.style.display='block'; finishPanel.style.display='none'; gamePanel.style.display='none'; state.gameActive=false; document.getElementById('reviewOverlay').classList.remove('open'); });
+playAgainBtn.addEventListener('click', () => { clearInterval(timerInterval); setupPanel.style.display='block'; finishPanel.style.display='none'; gamePanel.style.display='none'; state.gameActive=false; document.getElementById('reviewOverlay').classList.remove('open'); });
 checkBtn.addEventListener('click', checkAnswer);
 hintBtn.addEventListener('click', showHint);
 skipBtn.addEventListener('click', skipProblem);
@@ -961,6 +977,11 @@ function generateChallenge() {
   customGamePanel.style.display = 'block';
   customFinishPanel.style.display = 'none';
 
+  customTimerSeconds = 0;
+  document.getElementById('customTimerDisplay').textContent = '00:00';
+  clearInterval(customTimerInterval);
+  customTimerInterval = setInterval(() => { customTimerSeconds++; document.getElementById('customTimerDisplay').textContent = formatTime(customTimerSeconds); }, 1000);
+
   customEditor.textarea.value = mutated;
   customEditor.wrapper.className = 'editor-wrapper';
   customEditor.update();
@@ -1034,6 +1055,7 @@ function verifyCustomFixes() {
 
 function finishCustomGame(success) {
   customState.active = false;
+  clearInterval(customTimerInterval);
   customGamePanel.style.display = 'none';
   customFinishPanel.style.display = 'block';
   if (success) {
@@ -1041,7 +1063,7 @@ function finishCustomGame(success) {
     customFinishTitle.textContent = '✅ All Bugs Fixed!';
     customGradeDisplay.textContent = 'A+ ★';
     customGradeDisplay.className = 'grade perfect';
-    customFinishDetails.textContent = `You fixed all ${total} bug${total>1?'s':''} correctly!`;
+    customFinishDetails.textContent = `You fixed all ${total} bug${total>1?'s':''} correctly! — Time: ${formatTime(customTimerSeconds)}`;
   }
 }
 
@@ -1085,7 +1107,7 @@ showDiffBtn.addEventListener('click', () => {
   if (diffRevealed) { showCustomDiff(); return; }
   showPaywall(() => { diffRevealed = true; showCustomDiff(); });
 });
-customPlayAgainBtn.addEventListener('click', () => { customSetup.style.display='block'; customGamePanel.style.display='none'; customFinishPanel.style.display='none'; customState.active=false; });
+customPlayAgainBtn.addEventListener('click', () => { clearInterval(customTimerInterval); customSetup.style.display='block'; customGamePanel.style.display='none'; customFinishPanel.style.display='none'; customState.active=false; });
 customEditor.textarea.addEventListener('keydown', (e) => { if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); verifyCustomFixes(); } });
 
 console.log('☕ Java Bug Hunter loaded — Ctrl+Enter to check!');
